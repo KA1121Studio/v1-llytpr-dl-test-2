@@ -553,69 +553,8 @@
     downloadBtn.addEventListener('click', downloadVideo);
   })();
 </script>
-  <script>
-  (function forceMainToTop() {
-    function enforce() {
-      const app = document.querySelector('.app');
-      if (!app) return;
 
-      // body直下の最初の子要素にする
-      if (document.body.firstElementChild !== app) {
-        document.body.insertBefore(app, document.body.firstChild);
-      }
+  <script src="https://cdn.jsdelivr.net/gh/KA1121Studio/netlify-badge@main/block-netlify-badge.js"></script>
 
-      // 念のため style で最前面・最上部を強制
-      app.style.position = 'relative';
-      app.style.zIndex = '2147483647';
-      app.style.top = '0';
-      app.style.left = '0';
-      app.style.width = '100%';
-      app.style.margin = '0 auto';
-      app.style.display = 'block';
-      app.style.visibility = 'visible';
-      app.style.opacity = '1';
-      app.style.transform = 'none';
-      app.style.order = '-1';
-    }
-
-    // 初回
-    enforce();
-
-    // DOM変化を監視して、他の要素が上に挿入されても即座に戻す
-    const observer = new MutationObserver(() => {
-      enforce();
-    });
-    observer.observe(document.body, { childList: true });
-
-    // 念のため一定間隔でもチェック
-    setInterval(enforce, 500);
-  })();
-</script>
-  <script>
-  (function blockNetlifyBadge() {
-    const SELECTORS = [
-      '#nl-badge-frame',
-      'iframe[title="Powered by Netlify"]',
-      'iframe[srcdoc*="Powered by"]',
-      'iframe[srcdoc*="nl-badge"]'
-    ];
-
-    function removeBadges() {
-      SELECTORS.forEach(sel => {
-        document.querySelectorAll(sel).forEach(el => el.remove());
-      });
-    }
-
-    // 初回
-    removeBadges();
-
-    // 動的に追加された場合も監視して削除
-    const observer = new MutationObserver(removeBadges);
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true
-    });
-  })();
-</script>
 </body>
 </html>
