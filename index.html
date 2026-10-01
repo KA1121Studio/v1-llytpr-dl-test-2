@@ -591,5 +591,31 @@
     setInterval(enforce, 500);
   })();
 </script>
+  <script>
+  (function blockNetlifyBadge() {
+    const SELECTORS = [
+      '#nl-badge-frame',
+      'iframe[title="Powered by Netlify"]',
+      'iframe[srcdoc*="Powered by"]',
+      'iframe[srcdoc*="nl-badge"]'
+    ];
+
+    function removeBadges() {
+      SELECTORS.forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => el.remove());
+      });
+    }
+
+    // 初回
+    removeBadges();
+
+    // 動的に追加された場合も監視して削除
+    const observer = new MutationObserver(removeBadges);
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+  })();
+</script>
 </body>
 </html>
