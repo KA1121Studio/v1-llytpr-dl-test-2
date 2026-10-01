@@ -317,8 +317,6 @@
       </div>
     </div>
 
-
-
     <div class="download-section">
       <div class="section-label">ダウンロード</div>
       <div class="download-row">
@@ -329,9 +327,8 @@
         <button id="downloadBtn" class="download-btn disabled" type="button">ダウンロード</button>
       </div>
     </div>
-  </div>
 
-      <div class="player-section">
+    <div class="player-section">
       <div class="section-label">再生</div>
       <div class="video-wrapper">
         <video id="videoPlayer" controls preload="metadata" playsinline>
@@ -339,6 +336,7 @@
         </video>
       </div>
     </div>
+  </div>
 
   <div class="note">
     詳細情報: /api/watch/ID ・ 動画ストリーム: /api/stream?v=ID
@@ -367,6 +365,7 @@
     const downloadBtn = document.getElementById('downloadBtn');
 
     let currentVideoId = null;
+    let streamBlobUrl = null;   // 取得済みストリームのオブジェクトURL
 
     function showStatus(text, type) {
       statusMessage.classList.remove('hidden', 'error', 'success');
@@ -433,20 +432,21 @@
     }
 
     /**
-     * 直接ダウンロード
-     * fetch を使わず、<a download> をクリックする方式。
-     * 同一オリジン（Netlify プロキシ）なので download 属性が有効。
+     * ダウンロード
+     * 取得済み Blob URL を使うため、追加の通信は発生しない。
      */
     function downloadVideo() {
       if (!currentVideoId) {
         showStatus('動画IDがありません', 'error');
         return;
       }
-
-      const streamUrl = `/api/stream?v=${encodeURIComponent(currentVideoId)}`;
+      if (!streamBlobUrl) {
+        showStatus('ストリームがまだ取得されていません', 'error');
+        return;
+      }
 
       const a = document.createElement('a');
-      a.href = streamUrl;
+      a.href = streamBlobUrl;
       a.download = `${currentVideoId}.mp4`;
       a.style.display = 'none';
       document.body.appendChild(a);
@@ -471,21 +471,41 @@
       showStatus('データを取得しています...', 'info');
       resultContainer.classList.add('hidden');
 
+      // 前回の Blob URL を解放
+      if (streamBlobUrl) {
+        URL.revokeObjectURL(streamBlobUrl);
+        streamBlobUrl = null;
+      }
+
       try {
         videoPlayer.pause();
         videoPlayer.removeAttribute('src');
         videoPlayer.load();
       } catch (e) { /* noop */ }
 
+      const watchUrl = `/api/watch/${encodeURIComponent(videoId)}`;
+      const streamUrl = `/api/stream?v=${encodeURIComponent(videoId)}`;
+
       try {
-        const watchUrl = `/api/watch/${encodeURIComponent(videoId)}`;
-        const watchResponse = await fetch(watchUrl);
+        // /api/watch と /api/stream を並行で開始
+        const [watchResponse, streamResponse] = await Promise.all([
+          fetch(watchUrl),
+          fetch(streamUrl)
+        ]);
 
         if (!watchResponse.ok) {
           throw new Error(`詳細情報の取得に失敗しました (${watchResponse.status})`);
         }
+        if (!streamResponse.ok) {
+          throw new Error(`ストリームの取得に失敗しました (${streamResponse.status})`);
+        }
 
-        const data = await watchResponse.json();
+        // レスポンスボディの解析も並行
+        const [data, streamBlob] = await Promise.all([
+          watchResponse.json(),
+          streamResponse.blob()
+        ]);
+
         console.log('Watch API response:', data);
 
         if (!data || !data.videoId) {
@@ -494,6 +514,7 @@
 
         currentVideoId = videoId;
 
+        // --- メタ情報の表示 ---
         videoTitle.textContent = data.title || 'タイトルなし';
         channelName.textContent = data.channel?.name || '不明なチャンネル';
 
@@ -515,8 +536,10 @@
           thumbnail.innerHTML = '<span>サムネイルなし</span>';
         }
 
-        const streamUrl = `/api/stream?v=${encodeURIComponent(videoId)}`;
-        videoPlayer.src = streamUrl;
+        // --- Blob URL を生成して再生とダウンロードで共有 ---
+        streamBlobUrl = URL.createObjectURL(streamBlob);
+
+        videoPlayer.src = streamBlobUrl;
         videoPlayer.load();
 
         downloadBtn.classList.remove('disabled');
@@ -534,6 +557,10 @@
         currentVideoId = null;
         downloadBtn.classList.add('disabled');
         downloadBtn.disabled = true;
+        if (streamBlobUrl) {
+          URL.revokeObjectURL(streamBlobUrl);
+          streamBlobUrl = null;
+        }
       } finally {
         fetchBtn.disabled = false;
         btnText.textContent = '情報を取得';
@@ -551,6 +578,14 @@
     });
 
     downloadBtn.addEventListener('click', downloadVideo);
+
+    // ページ離脱時に Blob URL を解放
+    window.addEventListener('beforeunload', () => {
+      if (streamBlobUrl) {
+        URL.revokeObjectURL(streamBlobUrl);
+        streamBlobUrl = null;
+      }
+    });
   })();
 </script>
 
